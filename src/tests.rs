@@ -4,21 +4,21 @@ pub mod tests {
 
     #[test]
     fn create_identity_matrix() {
-        let m: Matrix<f64, 16> = Matrix::identity(4);
-        println!("{m}")
+        let m: Matrix<i32, 9> = Matrix::identity(3);
+        assert_eq!(m, Matrix::from(vec![vec![1, 0, 0], vec![0, 1, 0], vec![0, 0, 1]]))
     }
 
     #[test]
     fn uint_matrix_addition() {
-        let m1: Matrix<u8, 16> = Matrix::identity(4);
-        let m2: Matrix<u8, 16> = Matrix::ones(4, 4);
+        let m1: Matrix<u8, 9> = Matrix::identity(3);
+        let m2: Matrix<u8, 9> = Matrix::ones(3, 3);
 
-        println!("{}", m1 + m2);
+        assert_eq!(m1 + m2, Matrix::from(vec![vec![2, 1, 1], vec![1, 2, 1], vec![1, 1, 2]]))
     }
 
     #[test]
     fn generic_addition() {
-        #[derive(Clone, Copy, PartialEq, Eq)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         struct A(i32);
         #[derive(Clone, Copy, PartialEq, Eq, Debug)]
         struct B(i32);
@@ -99,9 +99,10 @@ pub mod tests {
             }
         }
 
-        let m1: Matrix<A, 16> = Matrix::identity(4);
-        let m2: Matrix<B, 16> = Matrix::ones(4, 4);
+        let m1: Matrix<A, 9> = Matrix::identity(3);
+        let m2: Matrix<B, 9> = Matrix::ones(3, 3);
 
-        let a = m1 + m2; // this works
+        let a = m1 + m2; // type of a is Matrix<A, 16>
+        assert_eq!(a, Matrix::from(vec![vec![A(2), A(1), A(1)], vec![A(1), A(2), A(1)], vec![A(1), A(1), A(2)]]))
     }
 }

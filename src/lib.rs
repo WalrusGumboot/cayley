@@ -1,9 +1,11 @@
 #![allow(dead_code)]
-use num_traits::{NumAssignOps, One, Zero};
+#![feature(generic_const_exprs)]
+use num_traits::{One, Zero};
 use std::fmt::{self, Display};
-use std::ops::{Add, AddAssign, Index, IndexMut, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Index, IndexMut, Sub, SubAssign, Mul};
 
 /// The base Matrix struct.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Matrix<T, const N: usize> {
     data: [T; N],
     rows: usize,
@@ -61,6 +63,22 @@ where
         }
 
         Ok(())
+    }
+}
+
+impl<T, const N: usize> From<Vec<Vec<T>>> for Matrix<T, N> where T: Copy {
+    fn from(value: Vec<Vec<T>>) -> Matrix<T, N> {
+        assert!(value.iter().all(|row| row.len() == value[0].len()), "Not all rows have the same length.");
+        let mut data = [value[0][0]; N];
+        let mut flattened = value.iter().flatten();
+        for i in 0..N {
+            data[i] = *flattened.next().unwrap();
+        }
+        Self {
+            data,
+            rows: value.len(),
+            cols: value[0].len()
+        }
     }
 }
 
@@ -198,5 +216,20 @@ where
         }
     }
 }
+
+// Multiplication
+impl<T, Q, R, const N: usize, const M: usize> Mul<Matrix<Q, M>> for Matrix<T, N>
+where 
+    T: Copy + Mul<Q, Output = R>, 
+    Q: Copy, 
+    R: Add,
+    [(); N * M]: Sized {
+    type Output = Matrix<R, {N * M}>;
+    fn mul(self, rhs: Matrix<Q, M>) -> Self::Output {
+        assert_eq!(self.cols, rhs.rows, "Cannot multiply these two matrices as the number of columns in the left one is not equal to the number of rows in the right one.");
+        unimplemented!()
+    }
+}
+
 
 mod tests;
