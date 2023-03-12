@@ -1,6 +1,9 @@
-/*! linalg is a crate for generic linear algebra. It aims to do everything stack-allocated
+/*! `cayley` is a crate for generic linear algebra. It aims to do everything stack-allocated
 and constantly sized (though there are workarounds possible if dynamically sized
-types are needed). In addition to this, it aims to assume as little as possible
+types are needed). `cayley` is named after Arthur Cayley, a prominent mathematician who
+introduced matrix multiplication.
+
+In addition to this, it aims to assume as little as possible
 about the type over which its structures are generic. For example, you can construct
 an identity matrix of any type that implements `One`, `Zero` and `Copy`, and you can multiply
 matrices of different types A and B, so long as there exists a type C so that A * B = C
@@ -8,6 +11,8 @@ and C + C = C. In practice, of course, all numerical types meet these conditions
 
 Due to the nature of generic matrices, it's necessary to use the `#[feature(generic_const_exprs)]`
 feature; there is no other way to provide compile-time multiplicability or invertibility checks.
+
+In its current state, cayley is VERY work-in-progress. Don't use this in production.
 */
 
 #![allow(dead_code)]
@@ -172,7 +177,7 @@ where
     /// ## Example
     ///
     /// ```
-    /// use linalg::Matrix;
+    /// use cayley::Matrix;
     /// let m: Matrix<usize, 2, 3> = Matrix::from_closure(2, 3, |x, y| x + y);
     /// assert_eq!(m, Matrix::from(vec![vec![0, 1, 2], vec![1, 2, 3]]));
     /// ```
@@ -232,7 +237,7 @@ where
     ///
     /// ## Example
     /// ```
-    /// use linalg::Matrix;
+    /// use cayley::Matrix;
     /// let m: Matrix<i32, 3, 3> = Matrix::identity(3);
     /// assert_eq!(
     ///     m,
