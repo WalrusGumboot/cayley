@@ -4,21 +4,27 @@ pub mod tests {
 
     #[test]
     fn create_identity_matrix() {
-        let m: Matrix<f64, 16> = Matrix::identity(4);
-        println!("{m}")
+        let m: Matrix<i32, 3, 3> = Matrix::identity(3);
+        assert_eq!(
+            m,
+            Matrix::from(vec![vec![1, 0, 0], vec![0, 1, 0], vec![0, 0, 1]])
+        )
     }
 
     #[test]
     fn uint_matrix_addition() {
-        let m1: Matrix<u8, 16> = Matrix::identity(4);
-        let m2: Matrix<u8, 16> = Matrix::ones(4, 4);
+        let m1: Matrix<u8, 3, 3> = Matrix::identity(3);
+        let m2: Matrix<u8, 3, 3> = Matrix::ones(3, 3);
 
-        println!("{}", m1 + m2);
+        assert_eq!(
+            m1 + m2,
+            Matrix::from(vec![vec![2, 1, 1], vec![1, 2, 1], vec![1, 1, 2]])
+        )
     }
 
     #[test]
     fn generic_addition() {
-        #[derive(Clone, Copy, PartialEq, Eq)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         struct A(i32);
         #[derive(Clone, Copy, PartialEq, Eq, Debug)]
         struct B(i32);
@@ -99,9 +105,66 @@ pub mod tests {
             }
         }
 
-        let m1: Matrix<A, 16> = Matrix::identity(4);
-        let m2: Matrix<B, 16> = Matrix::ones(4, 4);
+        let m1: Matrix<A, 3, 3> = Matrix::identity(3);
+        let m2: Matrix<B, 3, 3> = Matrix::ones(3, 3);
 
-        let a = m1 + m2; // this works
+        let a = m1 + m2; // type of a is Matrix<A, 16>
+        assert_eq!(
+            a,
+            Matrix::from(vec![
+                vec![A(2), A(1), A(1)],
+                vec![A(1), A(2), A(1)],
+                vec![A(1), A(1), A(2)]
+            ])
+        )
+    }
+
+    #[test]
+    fn matrix_multiplication() {
+        let m1: Matrix<i32, 2, 3> = Matrix::from(vec![vec![1, 2, 3], vec![4, 5, 6]]);
+        let m2: Matrix<i32, 3, 2> = Matrix::from(vec![vec![1, 2], vec![3, 4], vec![5, 6]]);
+
+        assert_eq!(m1 * m2, Matrix::from(vec![vec![22, 28], vec![49, 64]]));
+    }
+
+    #[test]
+    #[ignore = "This function should not be able to compile."]
+    fn invalid_matrix_multiplication() {
+        let m1: Matrix<i32, 2, 3> = Matrix::from(vec![vec![1, 2, 3], vec![4, 5, 6]]);
+        let m2: Matrix<i32, 2, 2> = Matrix::from(vec![vec![1, 2], vec![3, 4]]);
+
+        // let _ = m1 * m2; this errors!
+    }
+
+    #[test]
+    fn transposition() {
+        let m: Matrix<i32, 2, 3> = Matrix::from(vec![vec![1, 2, 3], vec![4, 5, 6]]);
+
+        assert_eq!(
+            m.transpose(),
+            Matrix::from(vec![vec![1, 4], vec![2, 5], vec![3, 6]])
+        );
+
+        // ∀ A: (Aᵀ)ᵀ = A
+        assert_eq!(m, m.transpose().transpose());
+
+        let id: Matrix<i32, 8, 8> = Matrix::identity(8);
+
+        // ∀ n: Iₙ = (Iₙ)ᵀ
+        assert_eq!(id.transpose(), id);
+    }
+
+    #[test]
+    fn determinant() {
+        let m1: Matrix<f64, 2, 2> = Matrix::from(vec![vec![1.0, 2.0], vec![3.0, 4.0]]);
+
+        assert_eq!(m1.determinant(), -2.0f64);
+    }
+
+    #[test]
+    fn inverse() {
+        let m1: Matrix<f64, 2, 2> = Matrix::from(vec![vec![1.0, 2.0], vec![0.0, 0.0]]);
+
+        assert_eq!(m1.inverse(), None);
     }
 }
