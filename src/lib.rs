@@ -277,6 +277,7 @@ where
 }
 
 // Multiplication
+
 impl<T, Q, R, const N: usize, const M: usize, const O: usize, const P: usize> Mul<Matrix<Q, O, P>>
     for Matrix<T, N, M>
 where
