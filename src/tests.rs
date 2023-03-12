@@ -167,4 +167,10 @@ pub mod tests {
 
         assert_eq!(m1.inverse(), None);
     }
+
+    #[test]
+    fn creation_from_closure() {
+        let m: Matrix<usize, 2, 3> = Matrix::from_closure(2, 3, |x, y| x + y);
+        assert_eq!(m, Matrix::from(vec![vec![0, 1, 2], vec![1, 2, 3]]));
+    }
 }
