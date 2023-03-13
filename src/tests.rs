@@ -157,8 +157,12 @@ pub mod tests {
     #[test]
     fn determinant() {
         let m1: Matrix<f64, 2, 2> = Matrix::from(vec![vec![1.0, 2.0], vec![3.0, 4.0]]);
+        let m2: Matrix<f64, 3, 3> = Matrix::from(vec![vec![1.0, 2.0, 3.0], vec![4.0, 5.0, 6.0], vec![7.0, 8.0, 9.0]]);
+        let m3: Matrix<f64, 3, 3> = Matrix::from(vec![vec![1.0, 2.0, 0.0], vec![4.0, 5.0, 6.0], vec![7.0, 8.0, 9.0]]);
 
-        assert_eq!(m1.determinant(), -2.0f64);
+        assert_eq!(m1.determinant(), -2.0_f64);
+        assert_eq!(m2.determinant(), 0.0_f64);
+        assert_eq!(m3.determinant(), 9.0_f64);
     }
 
     #[test]

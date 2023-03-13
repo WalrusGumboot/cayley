@@ -399,6 +399,15 @@ where
     }
 }
 
+impl<T, const N: usize, const M: usize> Matrix<T, N, M>
+where [(); N * M]:, [(); (N-1)*(M-1)]
+{
+    pub fn submatrix(&self, r: usize, c: usize) -> Matrix<T, N - 1, M - 1> {
+        assert!(r < self.rows);
+        assert!(c < self.cols);
+    }
+}
+
 impl<T, const N: usize> Matrix<T, N, N>
 where
     [(); N * N]:,
@@ -411,7 +420,12 @@ where
         match N {
             1 => self[(0, 0)],
             2 => self[(0, 0)] * self[(1, 1)] - self[(0, 1)] * self[(1, 0)],
-            _ => todo!(),
+            3 => self[(0, 0)] * self[(1, 1)] * self[(2, 2)] + self[(0, 1)] * self[(1, 2)] * self[(2, 0)] + self[(0, 2)] * self[(1, 0)] * self[(2, 1)] - 
+                 self[(0, 2)] * self[(1, 1)] * self[(2, 0)] + self[(0, 1)] * self[(1, 0)] * self[(2, 2)] + self[(0, 0)] * self[(1, 2)] * self[(2, 1)]
+            n => {
+                // recursive solution: determine cofactors of top row, multiply with top row's entries, then sum together
+                
+            },
         }
     }
 }
