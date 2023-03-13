@@ -160,21 +160,35 @@ pub mod tests {
         let m2: Matrix<f64, 3, 3> = Matrix::from(vec![vec![1.0, 2.0, 3.0], vec![4.0, 5.0, 6.0], vec![7.0, 8.0, 9.0]]);
         let m3: Matrix<f64, 3, 3> = Matrix::from(vec![vec![1.0, 2.0, 0.0], vec![4.0, 5.0, 6.0], vec![7.0, 8.0, 9.0]]);
 
+        let m4: Matrix<f64, 4, 4> = Matrix::from(vec![vec![1.0, 2.0, 3.0, 4.0], vec![4.0, 5.0, 6.0, 1.0], vec![2.0, 3.0, 5.0, 4.0], vec![3.0, 5.0, 8.0, 6.0]]);
+        
         assert_eq!(m1.determinant(), -2.0_f64);
         assert_eq!(m2.determinant(), 0.0_f64);
         assert_eq!(m3.determinant(), 9.0_f64);
+        assert_eq!(m4.determinant(), 6.0_f64);
     }
 
     #[test]
     fn inverse() {
         let m1: Matrix<f64, 2, 2> = Matrix::from(vec![vec![1.0, 2.0], vec![0.0, 0.0]]);
-
         assert_eq!(m1.inverse(), None);
+
+        let m2: Matrix<f64, 3, 3> = Matrix::identity(3);
+        assert_eq!(m2.inverse(), Some(m2));
+
+        let m3: Matrix<f64, 2, 2> = Matrix::from(vec![vec![4.0, 7.0], vec![2.0, 6.0]]); // has nonzero determinant
+        assert_eq!(m3.inverse(), Some(Matrix::from(vec![vec![0.6, -0.7], vec![-0.2, 0.4]])))
     }
 
     #[test]
     fn creation_from_closure() {
         let m: Matrix<usize, 2, 3> = Matrix::from_closure(2, 3, |x, y| x + y);
         assert_eq!(m, Matrix::from(vec![vec![0, 1, 2], vec![1, 2, 3]]));
+    }
+
+    #[test]
+    fn submatrix() {
+        let m: Matrix<usize, 4, 4> = Matrix::from_closure(4, 4, |x, y| 4*x + y);
+        assert_eq!(m.submatrix(3, 3), Matrix::from(vec![vec![0, 1, 2], vec![4, 5, 6], vec![8, 9, 10]]))
     }
 }

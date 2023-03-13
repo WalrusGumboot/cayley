@@ -15,13 +15,13 @@ feature; there is no other way to provide compile-time multiplicability or inver
 In its current state, cayley is VERY work-in-progress. Don't use this in production.
 */
 
-#![allow(dead_code)]
+#![allow(dead_code, incomplete_features)]
 #![doc(test(attr(feature(generic_const_exprs))))]
 #![feature(generic_const_exprs)]
 #![deny(missing_docs)]
 use num_traits::{NumOps, One, Zero};
 use std::fmt::{self, Display};
-use std::ops::{Add, AddAssign, Index, IndexMut, Mul, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Index, IndexMut, Mul, Sub, SubAssign, Neg};
 
 /// The following is some weird shit. This enum is generic over a boolean condition.
 /// It then only implements the IsTrue trait for `DimensionAssertion<true>`, so that
@@ -114,6 +114,14 @@ where
 
         Ok(())
     }
+}
+
+impl<T, const N: usize, const M: usize> Matrix<T, N, M>
+where
+    [(); N * M]:,
+{
+    /// Checks if the matrix is square.
+    pub fn is_square(&self) -> bool { self.rows == self.cols }
 }
 
 impl<T, const N: usize, const M: usize> From<Vec<Vec<T>>> for Matrix<T, N, M>
@@ -253,9 +261,6 @@ where
     }
 }
 
-/// Operations on matrices.
-/// Note that the resulting matrix takes on the type of the left matrix.
-
 // Addition.
 impl<T, Q, const N: usize, const M: usize> Add<Matrix<Q, N, M>> for Matrix<T, N, M>
 where
@@ -336,6 +341,23 @@ where
 
 // Multiplication
 
+impl<T, const N: usize, const M: usize> Matrix<T, N, M> 
+where T: Copy + Mul<Output = T> + Zero, [(); N * M]: {
+    /// Multiplies every element of a Matrix 
+    pub fn scalar_mul(&self, rhs: T) -> Matrix<T, N, M> {
+        let mut data: Matrix<T, N, M> = Matrix::zeroes(N, M);
+        
+        for x in 0..N {
+            for y in 0..M {
+                data[(x, y)] = self[(x, y)].mul(rhs);
+            }
+        }
+
+        data
+    }
+}
+
+
 impl<T, Q, R, const N: usize, const M: usize, const O: usize, const P: usize> Mul<Matrix<Q, O, P>>
     for Matrix<T, N, M>
 where
@@ -400,40 +422,137 @@ where
 }
 
 impl<T, const N: usize, const M: usize> Matrix<T, N, M>
-where [(); N * M]:, [(); (N-1)*(M-1)]
+where [(); N * M]:, [(); (N-1)*(M-1)]:, T: Zero + Copy
 {
-    pub fn submatrix(&self, r: usize, c: usize) -> Matrix<T, N - 1, M - 1> {
-        assert!(r < self.rows);
-        assert!(c < self.cols);
+    /// Calculates the submatrix of a matrix. The submatrix is the smaller matrix aqcuired from
+    /// ignoring the existence of one row and one column from that matrix.
+    pub fn submatrix(&self, r: usize, c: usize) -> Matrix<T, {N - 1}, {M - 1}> {
+        assert!(r < self.rows, "Specified out-of-bounds index in creating a submatrix: indexed row {} while matrix has {} rows.", r, self.rows);
+        assert!(c < self.cols, "Specified out-of-bounds index in creating a submatrix: indexed column {} while matrix has {} columns.", c, self.cols);
+
+        let mut subm: Matrix<T, {N - 1}, {M - 1}> = Matrix::zeroes(self.rows - 1, self.cols - 1);
+
+        let mut x_counter = 0usize;
+        let mut y_counter = 0usize;
+
+        for x in 0..N {
+            if x == r { continue; }
+            for y in 0..M {
+                if y == c { continue; }
+                subm[(x_counter, y_counter)] = self[(x, y)];
+                y_counter += 1;
+            }
+            y_counter = 0;
+            x_counter += 1;
+        }
+
+        subm
     }
+}
+
+impl<T, const N: usize> Matrix<T, N, N>
+where [(); N * N]:, [(); (N-1)*(N-1)]:, T: Zero + Copy
+{
+    /// Calculates the submatrix of a square matrix. This implementation is necessary for some
+    /// other calculations to be valid (e.g. the comatrix); it does not perform better at all.
+    pub fn square_submatrix(&self, r: usize, c: usize) -> Matrix<T, {N - 1}, {N - 1}> {
+        self.submatrix(r, c)
+    }
+}
+
+impl<T, const N: usize> Matrix<T, N, N>
+where [(); N * N]:, T: Zero + One + Copy + NumOps, [(); (N-1)*(N-1)]:,
+{
+    /// Calculates the matrix of cofactors.
+    pub fn comatrix(&self) -> Self {
+        let mut result: Matrix<T, N, N> = Matrix::zeroes(N, N);
+
+        for x in 0..N {
+            for y in 0..N {
+                result[(x, y)] = self.square_submatrix(x, y).determinant();
+            }
+        }
+
+        result
+    }
+
+    /// Calculates the adjugate (also known as the classical adjoint) of a square matrix.
+    pub fn adjugate(&self) -> Self {
+        self.comatrix().transpose()
+    } 
 }
 
 impl<T, const N: usize> Matrix<T, N, N>
 where
     [(); N * N]:,
-    T: Copy + NumOps + Zero,
+    T: Copy + NumOps + Zero + One,
 {
     /// Calculates the determinant of a Matrix.
     /// Requires the relevant type to implement NumOps (Add, Sub, Mul, Div), as well
-    /// as Copy and Zero.
+    /// as Copy, Zero, One and Neg.
     pub fn determinant(&self) -> T {
         match N {
             1 => self[(0, 0)],
             2 => self[(0, 0)] * self[(1, 1)] - self[(0, 1)] * self[(1, 0)],
             3 => self[(0, 0)] * self[(1, 1)] * self[(2, 2)] + self[(0, 1)] * self[(1, 2)] * self[(2, 0)] + self[(0, 2)] * self[(1, 0)] * self[(2, 1)] - 
-                 self[(0, 2)] * self[(1, 1)] * self[(2, 0)] + self[(0, 1)] * self[(1, 0)] * self[(2, 2)] + self[(0, 0)] * self[(1, 2)] * self[(2, 1)]
+                 self[(0, 2)] * self[(1, 1)] * self[(2, 0)] - self[(0, 1)] * self[(1, 0)] * self[(2, 2)] - self[(0, 0)] * self[(1, 2)] * self[(2, 1)],
             n => {
-                // recursive solution: determine cofactors of top row, multiply with top row's entries, then sum together
+                // a recursive solution would be really nice but I can't figure out the type stuff, so we opt for LU decomposition.
+                // the following is an implementation of Craut's method, taken straight from Wikipedia:
+                // https://en.wikipedia.org/w/index.php?title=Crout_matrix_decomposition&oldid=956132782
+
+                let mut L: Matrix<T, N, N> = Matrix::zeroes(N, N);
+                let mut U: Matrix<T, N, N> = Matrix::zeroes(N, N);
                 
+                for i in 0..N {
+                    U[(i, i)] = T::one();
+                }
+
+                for j in 0..N {
+                    for i in 0..N {
+                        let mut sum = T::zero();
+                        for k in 0..j {
+                            sum = sum + L[(i, k)] * U[(k,  j)];
+                        }
+                        L[(i, j)] = self[(i, j)] - sum;
+                    }
+
+                    for i in j..N {
+                        let mut sum = T::zero();
+                        for k in 0..j {
+                            sum = sum + L[(j, k)] * U[(k, i)];
+                        }
+                        if L[(j, j)].is_zero() {
+                            // the determinant is zero. Wikipedia's program exits here,
+                            // but finding the determinant is exactly what this function
+                            // is supposed to do lmao
+                            return T::zero();
+                        }
+                        U[(j, i)] = (self[(j, i)] - sum) / L[(j, j)];
+                    }
+                }
+
+                let mut determinant = T::one();
+
+                for i in 0..N {
+                    determinant = determinant * L[(i, i)] * U[(i, i)];
+                }
+
+                //TODO: this should sometimes be multiplied by -1; it is not exactly clear to me when.
+                determinant
             },
         }
     }
+
+
 }
+
 
 impl<T, const N: usize> Matrix<T, N, N>
 where
     [(); N * N]:,
-    T: Copy + NumOps + Zero + PartialEq,
+    [(); (N-1)*(N-1)]:,
+    T: Copy + NumOps + Zero + PartialEq + One + Neg<Output = T> + Display,
 {
     /// Attempts to calculate the inverse of the Matrix. Note that this is only
     /// implemented for `Matrix<T, N, N>`, i.e. square matrices.
@@ -443,10 +562,11 @@ where
     /// An `Option<Self>`: `None` if the matrix isn't invertible and `Some(m)` with
     /// m being the inverted matrix.
     pub fn inverse(&self) -> Option<Self> {
-        if self.determinant() == T::zero() {
+        let det = self.determinant();
+        if det == T::zero() {
             None
         } else {
-            todo!()
+            Some(self.adjugate().scalar_mul(T::one() / det))
         }
     }
 }
