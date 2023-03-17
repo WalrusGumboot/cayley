@@ -19,7 +19,7 @@ In its current state, cayley is VERY work-in-progress. Don't use this in product
 #![doc(test(attr(feature(generic_const_exprs))))]
 #![feature(generic_const_exprs)]
 #![deny(missing_docs)]
-use num_traits::{NumOps, One, Zero};
+use num_traits::{NumOps, One, Signed, Zero};
 use std::fmt::{self, Debug, Display};
 use std::ops::{Add, AddAssign, Index, IndexMut, Mul, Neg, Sub, SubAssign};
 
@@ -551,7 +551,7 @@ where
 impl<T, const N: usize, const M: usize> Matrix<T, N, M>
 where
     [(); N * M]:,
-    T: Zero + One + Copy + NumOps + PartialEq + Display + Debug,
+    T: Zero + One + Copy + NumOps + PartialEq + PartialOrd + Signed + Display + Debug,
 {
     /// Applies an elementary row operation to a specified row.
     ///
@@ -610,66 +610,44 @@ where
             return;
         }
 
-        let mut checked_rows = 0;
+        for k in 0..N.min(M) {
+            // find the maximum element for this column
 
-        while !self.is_in_row_echelon_form() {
-            let leftmost_nonzero_column = (0..M)
-                .map(|i| {
-                    let mut v = vec![T::zero(); N - checked_rows];
-                    v.clone_from_slice(&self.col(i)[checked_rows..]);
-                    v
-                }) // we don't want to check rows above known good ones
-                .position(|c| c.iter().any(|e| !e.is_zero()))
-                .unwrap();
+            let (max_row, max_val) =
+                (k..N)
+                    .map(|i| self.row(i))
+                    .enumerate()
+                    .fold((0usize, T::zero()), |acc, val| {
+                        let max_val = val.1.iter().fold(T::zero(), |curr_max, new_val| {
+                            if new_val > &curr_max {
+                                *new_val
+                            } else {
+                                curr_max
+                            }
+                        });
+                        if max_val > acc.1 {
+                            (val.0, max_val)
+                        } else {
+                            acc
+                        }
+                    });
 
-            // right now we need to assure that there is a one in the
-            // topmost position of the column. we do this with elementary
-            // row operations, using the (at least) one value we know to be nonzero.
-
-            let first_nonzero_element_idx = self
-                .col(leftmost_nonzero_column)
-                .iter()
-                .position(|e| !e.is_zero())
-                .unwrap();
-            let first_nonzero_element_val =
-                self.col(leftmost_nonzero_column)[first_nonzero_element_idx];
-
-            if self[(checked_rows, leftmost_nonzero_column)].is_zero() {
-                // TODO: accumulate a relevant value for the determinant later on.
-                // we divide the row with the nonzero element in it by its own value, to get it to one
-                self.row_op(first_nonzero_element_idx, checked_rows, |r1, r2| {
-                    r1 / first_nonzero_element_val + r2
-                });
-            } else {
-                // scalar multiplication is a valid row operation
-                self.row_op(checked_rows, checked_rows, |r1, r2| {
-                    r1 / first_nonzero_element_val
-                });
+            if self[(max_row, k)].is_zero() {
+                panic!("Matrix is singular, cannot turn into row echelon form.");
             }
 
-            println!("\n{self}");
+            self.row_swap(k, max_row);
 
-            // now, all remaining rows below this one need to have the elements of this current
-            // leftmost column become zero. again, elementary row ops can make this happen. yay!
+            // we loop over all remaining rows
+            for i in (k + 1)..N {
+                let fraction = self[(i, k)] / self[(k, k)];
 
-            for i in (checked_rows + 1)..N {
-                let elem = self[(i, leftmost_nonzero_column)];
-
-                println!("currently checking ({leftmost_nonzero_column}, {i}) = {elem}");
-
-                if elem.is_zero() {
-                    continue;
+                for j in (k + 1)..M {
+                    self[(i, j)] = self[(i, j)] - self[(k, j)] * fraction;
                 }
-                // the row already has a zero below the pivot
-                else {
-                    // this should reduce to zero
-                    self.row_op(checked_rows, i, |r1, r2| r2 - elem * r1);
-                }
+
+                self[(i, k)] = T::zero();
             }
-
-            panic!("\n{self}");
-
-            checked_rows += 1;
         }
     }
 

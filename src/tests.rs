@@ -267,5 +267,7 @@ pub mod tests {
         ]);
 
         m.row_ef();
+
+        panic!("{m}");
     }
 }
