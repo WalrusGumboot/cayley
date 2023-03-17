@@ -83,7 +83,7 @@ where
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // Displaying a matrix is kind of interesting: we want to have nicely
         // spaced and nicely aligned numbers, but use cases might arise where
-        // the elements of a Matrix implement NumAssignOps and Display but aren't
+        // the elements of a Matrix implement NumOps and Display but aren't
         // numbers in and of themselves. We have to figure out the longest
         // string representation first, then do all of the printing stuff.
 
@@ -101,7 +101,7 @@ where
             .map(|s| format!("{:0l$} ", s, l = longest))
             .collect::<Vec<String>>();
 
-        for row in padded_string_reps.chunks_exact(self.rows) {
+        for row in padded_string_reps.chunks_exact(self.cols) {
             writeln!(
                 f,
                 "{}",
@@ -186,6 +186,9 @@ where
             value.iter().all(|row| row.len() == value[0].len()),
             "Not all rows have the same length."
         );
+        assert_eq!(value.len(), N, "Dimensionality does not hold: specified a vector with {} elements but Matrix type is supposed to have {N} rows.", value.len());
+        assert_eq!(value[0].len(), M, "Dimensionality does not hold: specified a vector whose elements have {} elements but Matrix type is supposed to have {M} columns.", value[0].len());
+
         let mut data = [value[0][0]; N * M];
         let mut flattened = value.iter().flatten();
         for i in 0..N * M {
@@ -611,16 +614,17 @@ where
 
         while !self.is_in_row_echelon_form() {
             let leftmost_nonzero_column = (0..M)
-                .map(|i| &self.col(i)[checked_rows..]) // we don't want to check rows above known good ones
+                .map(|i| {
+                    let mut v = vec![T::zero(); N - checked_rows];
+                    v.clone_from_slice(&self.col(i)[checked_rows..]);
+                    v
+                }) // we don't want to check rows above known good ones
                 .position(|c| c.iter().any(|e| !e.is_zero()))
                 .unwrap();
 
             // right now we need to assure that there is a one in the
             // topmost position of the column. we do this with elementary
             // row operations, using the (at least) one value we know to be nonzero.
-
-            // TODO: only execute the following 14 lines of code if (checked_rows, leftmost_nonzero_column)
-            // is actually zero; the current code assumes that, and that may not be the case.
 
             let first_nonzero_element_idx = self
                 .col(leftmost_nonzero_column)
@@ -630,18 +634,42 @@ where
             let first_nonzero_element_val =
                 self.col(leftmost_nonzero_column)[first_nonzero_element_idx];
 
-            // TODO: accumulate a relevant value for the determinant later on.
-            // we divide the row with the nonzero element in it by its own value, to get it to one
-            self.row_op(first_nonzero_element_idx, checked_rows, |r1, r2| {
-                r1 / first_nonzero_element_val + r2
-            });
+            if self[(checked_rows, leftmost_nonzero_column)].is_zero() {
+                // TODO: accumulate a relevant value for the determinant later on.
+                // we divide the row with the nonzero element in it by its own value, to get it to one
+                self.row_op(first_nonzero_element_idx, checked_rows, |r1, r2| {
+                    r1 / first_nonzero_element_val + r2
+                });
+            } else {
+                // scalar multiplication is a valid row operation
+                self.row_op(checked_rows, checked_rows, |r1, r2| {
+                    r1 / first_nonzero_element_val
+                });
+            }
+
+            println!("\n{self}");
 
             // now, all remaining rows below this one need to have the elements of this current
             // leftmost column become zero. again, elementary row ops can make this happen. yay!
 
-            for i in checked_rows..N {
-                // TODO: figure out row ops
+            for i in (checked_rows + 1)..N {
+                let elem = self[(i, leftmost_nonzero_column)];
+
+                println!("currently checking ({leftmost_nonzero_column}, {i}) = {elem}");
+
+                if elem.is_zero() {
+                    continue;
+                }
+                // the row already has a zero below the pivot
+                else {
+                    // this should reduce to zero
+                    self.row_op(checked_rows, i, |r1, r2| r2 - elem * r1);
+                }
             }
+
+            panic!("\n{self}");
+
+            checked_rows += 1;
         }
     }
 
