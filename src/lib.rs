@@ -21,7 +21,7 @@ In its current state, cayley is VERY work-in-progress. Don't use this in product
 #![deny(missing_docs)]
 use num_traits::{NumOps, One, Signed, Zero};
 use std::fmt::{self, Debug, Display};
-use std::ops::{Add, AddAssign, Index, IndexMut, Mul, Neg, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Index, IndexMut, Mul, Neg, Rem, Sub, SubAssign};
 
 /// The following is some weird shit. This enum is generic over a boolean condition.
 /// It then only implements the IsTrue trait for `DimensionAssertion<true>`, so that
@@ -38,9 +38,18 @@ pub struct Matrix<T, const N: usize, const M: usize>
 where
     [(); N * M]:,
 {
-    data: [T; N * M],
-    rows: usize,
-    cols: usize,
+    /// The array representing the data. The items are sorted in 'reading order', that is:
+    /// from left to right, next from top to bottom. It's generally not recommended to
+    /// access this array directly. Instead, indexing into the matrix using a tuple of `usize`s.
+    pub data: [T; N * M],
+    /// The number of rows in the matrix. Note that though this is typechecked
+    /// it is often still useful to just get the number of rows in a matrix by accessing
+    /// a field.
+    pub rows: usize,
+    /// The number of columns in the matrix. Note that though this is typechecked
+    /// it is often still useful to just get the number of columns in a matrix by accessing
+    /// a field.
+    pub cols: usize,
 }
 
 /// Convenience stuff.
@@ -551,7 +560,7 @@ where
 impl<T, const N: usize, const M: usize> Matrix<T, N, M>
 where
     [(); N * M]:,
-    T: Zero + One + Copy + NumOps + PartialEq + PartialOrd + Signed + Display + Debug,
+    T: Zero + One + Copy + NumOps + PartialEq + PartialOrd + Signed,
 {
     /// Applies an elementary row operation to a specified row.
     ///
@@ -604,51 +613,89 @@ where
     /// be shortened to 'ref', which is obviously a reserved Rust keyword.
     ///
     /// Unlike most methods implemented on `Matrix`, this mutates `self` without
-    /// returning a new matrix.
-    pub fn row_ef(&mut self) {
+    /// returning a new matrix. What it does return, however, is a product of all
+    /// row operation factors. This is used to calculate the determinant.
+    pub fn row_ef(&mut self) -> T {
+        // the accumulating factor
+        let mut accum = T::one();
+
         if self.is_in_row_echelon_form() {
-            return;
+            return accum;
         }
 
-        for k in 0..N.min(M) {
-            // find the maximum element for this column
+        // We operate column by column or row by row depending on which is the bigger one
+        // but frankly, it doesn't matter. Most matrices have more columns than rows though
+        // so the variable is named column
 
-            let (max_row, max_val) =
-                (k..N)
-                    .map(|i| self.row(i))
-                    .enumerate()
-                    .fold((0usize, T::zero()), |acc, val| {
-                        let max_val = val.1.iter().fold(T::zero(), |curr_max, new_val| {
-                            if new_val > &curr_max {
-                                *new_val
-                            } else {
-                                curr_max
-                            }
-                        });
-                        if max_val > acc.1 {
-                            (val.0, max_val)
-                        } else {
-                            acc
-                        }
-                    });
+        for current_column in 0..M.min(N) {
+            // If this column consists only of zeroes, it "accounts for a redundant
+            // variable" if you're speaking in terms of systems of linear equations.
+            // Hence, it can safely be ignored.
 
-            if self[(max_row, k)].is_zero() {
-                panic!("Matrix is singular, cannot turn into row echelon form.");
+            if self.col(current_column).iter().all(|e| e.is_zero()) {
+                continue;
             }
 
-            self.row_swap(k, max_row);
+            // To get zeroes in all rows below this one, we first calculate an
+            // intermediate row. This row is used to subtract from per row,
+            // such that the current row gets a zero.
+            //
+            // If the pivot is zero at this point, there will be a zero division
+            // in the following algorithm. However, because of the `continue` statement
+            // above, it is guaranteed that there is at least one nonzero element in
+            // this column. So, we swap the row containing that element and the current one
+            // around.
+            // Note that this shouldn't check entries in the column that come before the
+            // currently checked row! Those might be nonzero, but are irrelevant here.
 
-            // we loop over all remaining rows
-            for i in (k + 1)..N {
-                let fraction = self[(i, k)] / self[(k, k)];
+            if self[(current_column, current_column)].is_zero() {
+                let index_of_nonzero = self
+                    .col(current_column)
+                    .iter()
+                    .enumerate()
+                    .skip(current_column) // to ignore previous possibly nonzero values
+                    .find(|(idx, elem)| !elem.is_zero())
+                    .unwrap()
+                    .0;
 
-                for j in (k + 1)..M {
-                    self[(i, j)] = self[(i, j)] - self[(k, j)] * fraction;
+                self.row_swap(current_column, index_of_nonzero);
+                accum = accum.neg(); // swapping two rows multiplies the determinant by negative one
+            }
+
+            let pivot = self[(current_column, current_column)];
+
+            //println!("before:\n{self}");
+
+            //println!("on column {current_column}. pivot is {pivot}");
+
+            for row_below in (current_column + 1)..N {
+                let factor = self[(row_below, current_column)] / pivot;
+
+                //println!("making a zero in row {row_below}. factor is {factor}");
+
+                if factor.is_zero() {
+                    continue;
                 }
 
-                self[(i, k)] = T::zero();
+                let intermediate_row: Vec<T> = self
+                    .row(current_column)
+                    .iter()
+                    .map(|e| *e * factor)
+                    .collect();
+
+                //println!("intermediate row: {intermediate_row:?}");
+
+                for i in 0..M {
+                    self[(row_below, i)] = self[(row_below, i)] - intermediate_row[i];
+                }
             }
+
+            //println!("{self}");
+
+            accum = accum * self[(current_column, current_column)];
         }
+
+        accum
     }
 
     /// Checks if the matrix is in row echelon form.
@@ -660,7 +707,7 @@ where
         let mut leading_zeroes = -1isize;
         for i in 0..N {
             let r = rows.next().unwrap();
-            // println!("row is {r:#?}");
+            // println!(row is {r:#?}");
             if r.iter().all(|e| e.is_zero()) {
                 // println!("all zeroes");
                 match rows.peek() {
@@ -703,7 +750,7 @@ where
 impl<T, const N: usize> Matrix<T, N, N>
 where
     [(); N * N]:,
-    T: Zero + One + Copy + NumOps + Neg<Output = T>,
+    T: Zero + One + Copy + NumOps + Signed + PartialEq + PartialOrd,
     [(); (N - 1) * (N - 1)]:,
 {
     /// Calculates the matrix of cofactors.
@@ -712,7 +759,13 @@ where
 
         for x in 0..N {
             for y in 0..N {
-                result[(x, y)] = self.square_submatrix(x, y).determinant();
+                result[(x, y)] = self.square_submatrix(x, y).determinant() * {
+                    if (x + y) % 2usize == 0 {
+                        T::one()
+                    } else {
+                        T::one().neg()
+                    }
+                };
             }
         }
 
@@ -728,7 +781,7 @@ where
 impl<T, const N: usize> Matrix<T, N, N>
 where
     [(); N * N]:,
-    T: Copy + NumOps + Zero + One + Neg<Output = T>,
+    T: Copy + NumOps + Zero + One + PartialEq + PartialOrd + Signed,
 {
     /// Calculates the determinant of a Matrix.
     /// Requires the relevant type to implement NumOps (Add, Sub, Mul, Div), as well
@@ -746,58 +799,48 @@ where
                     - self[(0, 0)] * self[(1, 2)] * self[(2, 1)]
             }
             _ => {
-                // a recursive solution would be really nice but I can't figure out the type stuff, so we opt for LU decomposition.
-                // the following is an implementation of Crout's method, taken straight from Wikipedia:
-                // https://en.wikipedia.org/w/index.php?title=Crout_matrix_decomposition&oldid=956132782
+                let row_echelon_form_factor = self.clone().row_ef();
 
-                let mut lower: Matrix<T, N, N> = Matrix::zeroes(N, N);
-                let mut upper: Matrix<T, N, N> = Matrix::zeroes(N, N);
-
-                let mut line_swaps = 0usize;
-
-                for i in 0..N {
-                    upper[(i, i)] = T::one();
-                }
-
-                for j in 0..N {
-                    for i in 0..N {
-                        let mut sum = T::zero();
-                        for k in 0..j {
-                            sum = sum + lower[(i, k)] * upper[(k, j)];
-                        }
-                        lower[(i, j)] = self[(i, j)] - sum;
-                    }
-
-                    for i in j..N {
-                        let mut sum = T::zero();
-                        for k in 0..j {
-                            sum = sum + lower[(j, k)] * upper[(k, i)];
-                        }
-                        if lower[(j, j)].is_zero() {
-                            // the determinant is zero. Wikipedia's program exits here,
-                            // but finding the determinant is exactly what this function
-                            // is supposed to do lmao
-                            return T::zero();
-                        }
-                        upper[(j, i)] = (self[(j, i)] - sum) / lower[(j, j)];
-                    }
-                }
-
-                let mut determinant = T::one();
-
-                for i in 0..N {
-                    determinant = determinant * lower[(i, i)];
-                }
-
-                //TODO: this should sometimes be multiplied by -1; it is not exactly clear to me when.
-                determinant
-                    * if line_swaps % 2 == 0 {
-                        T::one()
-                    } else {
-                        -T::one()
-                    }
+                row_echelon_form_factor
             }
         }
+    }
+
+    /// Tries to decompose the matrix into a lower triangular and upper triangular matrix
+    /// according to Crout's method. Returns an optional tuple `Some((lower, upper))`.
+    /// The implementation is taken straight from Wikipedia:
+    /// https://en.wikipedia.org/w/index.php?title=Crout_matrix_decomposition&oldid=956132782
+    pub fn crout_decomposition(mut self) -> Option<(Self, Self)> {
+        let mut lower: Matrix<T, N, N> = Matrix::zeroes(N, N);
+        let mut upper: Matrix<T, N, N> = Matrix::zeroes(N, N);
+
+        for i in 0..N {
+            upper[(i, i)] = T::one();
+        }
+
+        for j in 0..N {
+            for i in 0..N {
+                let mut sum = T::zero();
+                for k in 0..j {
+                    sum = sum + lower[(i, k)] * upper[(k, j)];
+                }
+                lower[(i, j)] = self[(i, j)] - sum;
+            }
+
+            for i in j..N {
+                let mut sum = T::zero();
+                for k in 0..j {
+                    sum = sum + lower[(j, k)] * upper[(k, i)];
+                }
+                if lower[(j, j)].is_zero() {
+                    // The determinant is zero, and hence this decomposition cannot be returned.
+                    return None;
+                }
+                upper[(j, i)] = (self[(j, i)] - sum) / lower[(j, j)];
+            }
+        }
+
+        Some((lower, upper))
     }
 }
 
@@ -805,7 +848,7 @@ impl<T, const N: usize> Matrix<T, N, N>
 where
     [(); N * N]:,
     [(); (N - 1) * (N - 1)]:,
-    T: Copy + NumOps + Zero + PartialEq + One + Neg<Output = T>,
+    T: Copy + NumOps + Zero + PartialEq + One + Signed + PartialEq + PartialOrd,
 {
     /// Attempts to calculate the inverse of the Matrix. Note that this is only
     /// implemented for `Matrix<T, N, N>`, i.e. square matrices.

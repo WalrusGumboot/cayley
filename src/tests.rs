@@ -1,5 +1,7 @@
 #[cfg(test)]
 pub mod tests {
+    use num_traits::Signed;
+
     use crate::Matrix;
 
     #[test]
@@ -187,14 +189,39 @@ pub mod tests {
             vec![3.0, 5.0, 8.0, 6.0],
         ]);
 
+        let m5: Matrix<f64, 4, 4> = Matrix::from(vec![
+            vec![-1.0, 2.0, 3.0, 4.0],
+            vec![5.0, 6.0, 7.0, 8.0],
+            vec![3.0, 1.0, 2.0, 3.0],
+            vec![5.0, 2.0, -4.0, -1.0],
+        ]);
+
         assert_eq!(m1.determinant(), -2.0_f64);
         assert_eq!(m2.determinant(), 0.0_f64);
         assert_eq!(m3.determinant(), 9.0_f64);
         assert_eq!(m4.determinant(), 6.0_f64);
+        assert_eq!(m5.determinant(), -198.0_f64);
     }
 
     #[test]
-    #[ignore = "Still haven't got determinants quite down"]
+    fn adjugate() {
+        let m: Matrix<f64, 3, 3> = Matrix::from(vec![
+            vec![2.0, -3.0, 4.0],
+            vec![1.0, 0.0, 5.0],
+            vec![1.0, 1.0, 9.0],
+        ]);
+
+        assert_eq!(
+            m.adjugate(),
+            Matrix::from(vec![
+                vec![-5.0, 31.0, -15.0],
+                vec![-4.0, 14.0, -6.0],
+                vec![1.0, -5.0, 3.0]
+            ])
+        );
+    }
+
+    #[test]
     fn inverse() {
         let m1: Matrix<f64, 2, 2> = Matrix::from(vec![vec![1.0, 2.0], vec![0.0, 0.0]]);
         assert_eq!(m1.inverse(), None);
@@ -202,11 +229,15 @@ pub mod tests {
         let m2: Matrix<f64, 3, 3> = Matrix::identity(3);
         assert_eq!(m2.inverse(), Some(m2));
 
-        let m3: Matrix<f64, 2, 2> = Matrix::from(vec![vec![4.0, 7.0], vec![2.0, 6.0]]); // has nonzero determinant
-        assert_eq!(
-            m3.inverse(),
-            Some(Matrix::from(vec![vec![0.6, -0.7], vec![-0.2, 0.4]]))
-        )
+        let m3: Matrix<f64, 2, 2> = Matrix::from(vec![vec![4.0, 7.0], vec![2.0, 6.0]])
+            .inverse()
+            .unwrap(); // has nonzero determinant
+        let m3_inverse: Matrix<f64, 2, 2> = Matrix::from(vec![vec![0.6, -0.7], vec![-0.2, 0.4]]);
+        assert!(m3
+            .data
+            .iter()
+            .zip(m3_inverse.data.iter())
+            .all(|(a, b)| a.abs() - b.abs() < 1e-10));
     }
 
     #[test]
@@ -234,7 +265,7 @@ pub mod tests {
 
     #[test]
     fn row_ops() {
-        let mut m: Matrix<usize, 3, 3> = Matrix::from_closure(3, 3, |x, y| 3 * x + y);
+        let mut m: Matrix<i32, 3, 3> = Matrix::from_closure(3, 3, |x, y| (3 * x + y) as i32);
 
         m.row_op(0, 1, |r1, r2| 2 * r1 + r2);
 
@@ -267,7 +298,6 @@ pub mod tests {
         ]);
 
         m.row_ef();
-
-        panic!("{m}");
+        assert!(m.is_in_row_echelon_form())
     }
 }
