@@ -12,7 +12,6 @@ and C + C = C. In practice, of course, all numerical types meet these conditions
 Due to the nature of generic matrices, it's necessary to use the `#[feature(generic_const_exprs)]`
 feature; there is no other way to provide compile-time multiplicability or invertibility checks.
 
-In its current state, cayley is VERY work-in-progress. Don't use this in production.
 */
 
 #![allow(dead_code, incomplete_features)]
@@ -21,7 +20,7 @@ In its current state, cayley is VERY work-in-progress. Don't use this in product
 #![deny(missing_docs)]
 use num_traits::{NumOps, One, Signed, Zero};
 use std::fmt::{self, Debug, Display};
-use std::ops::{Add, AddAssign, Index, IndexMut, Mul, Neg, Rem, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Index, IndexMut, Mul, Neg, Sub, SubAssign};
 
 /// The following is some weird shit. This enum is generic over a boolean condition.
 /// It then only implements the IsTrue trait for `DimensionAssertion<true>`, so that
