@@ -653,7 +653,7 @@ where
                     .iter()
                     .enumerate()
                     .skip(current_column) // to ignore previous possibly nonzero values
-                    .find(|(idx, elem)| !elem.is_zero())
+                    .find(|(_idx, elem)| !elem.is_zero())
                     .unwrap()
                     .0;
 
@@ -704,7 +704,7 @@ where
         }
         let mut rows = (0..N).map(|i| self.row(i)).peekable();
         let mut leading_zeroes = -1isize;
-        for i in 0..N {
+        for _i in 0..N {
             let r = rows.next().unwrap();
             // println!(row is {r:#?}");
             if r.iter().all(|e| e.is_zero()) {
@@ -798,9 +798,9 @@ where
                     - self[(0, 0)] * self[(1, 2)] * self[(2, 1)]
             }
             _ => {
-                let row_echelon_form_factor = self.clone().row_ef();
+                
 
-                row_echelon_form_factor
+                self.clone().row_ef()
             }
         }
     }
@@ -809,7 +809,7 @@ where
     /// according to Crout's method. Returns an optional tuple `Some((lower, upper))`.
     /// The implementation is taken straight from Wikipedia:
     /// https://en.wikipedia.org/w/index.php?title=Crout_matrix_decomposition&oldid=956132782
-    pub fn crout_decomposition(mut self) -> Option<(Self, Self)> {
+    pub fn crout_decomposition(self) -> Option<(Self, Self)> {
         let mut lower: Matrix<T, N, N> = Matrix::zeroes(N, N);
         let mut upper: Matrix<T, N, N> = Matrix::zeroes(N, N);
 
